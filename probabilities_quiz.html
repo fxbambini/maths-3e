@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Probabilités — Test du cours (3e)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { background: #f7f3ec; font-family: "EB Garamond", Georgia, serif; }
+  #root { min-height: 100vh; }
+  /* Tailwind-like utility classes used in the app */
+  .min-h-screen { min-height: 100vh; }
+  .w-full { width: 100%; }
+  .max-w-3xl { max-width: 48rem; }
+  .mx-auto { margin-left: auto; margin-right: auto; }
+  .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .py-10 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
+  .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+  .py-16 { padding-top: 4rem; padding-bottom: 4rem; }
+  button { font-family: inherit; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+// ─── Utilitaires ───────────────────────────────────────────────
+const fmtDecimal = (x) => {
+  const s = x.toFixed(4);
+  return parseFloat(s).toString().replace(".", ",");
+};
+
+const parseStudent = (raw) => {
+  if (raw == null) return NaN;
+  const cleaned = String(raw).trim().replace(",", ".").replace(/\s/g, "");
+  if (cleaned === "") return NaN;
+  // accepte fractions du type "3/4"
+  if (cleaned.includes("/")) {
+    const [a, b] = cleaned.split("/");
+    const na = Number(a), nb = Number(b);
+    if (!Number.isNaN(na) && !Number.isNaN(nb) && nb !== 0) return na / nb;
+    return NaN;
+  }
+  return Number(cleaned);
+};
+
+const close = (a, b, eps = 1e-3) => Math.abs(a - b) < eps;
+
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+const pick = (arr) => arr[randInt(0, arr.length - 1)];
+
+const TOTAL_QUESTIONS = 20;
+
+// PGCD pour simplifier les fractions affichées dans les indices
+const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+const fracStr = (num, den) => {
+  const g = gcd(num, den);
+  const n = num / g, d = den / g;
+  if (d === 1) return `${n}`;
+  return `${n}/${d}`;
+};
+
+// ─── Générateurs ──────────────────────────────────────────────
+// Chaque générateur renvoie un objet avec :
+//   kind: "numeric" | "mcq" | "tf"
+//   stem: énoncé
+//   pour numeric : answer (number), unit?, hint
+//   pour mcq    : choices (array of strings), correctIndex, hint
+//   pour tf     : correct (boolean), hint
+
+const generators = {
+  // ── VOCABULAIRE (QCM) ───────────────────────────────────────
+  vocabulaire: () => {
+    const items = [
+      {
+        stem: "Comment appelle-t-on un résultat possible d'une expérience aléatoire ?",
+        choices: ["Une issue", "Un événement", "Un univers", "Une probabilité"],
+        correctIndex: 0,
+        hint: "Les résultats possibles d'une expérience aléatoire sont appelés les issues.",
+      },
+      {
+        stem: "Comment appelle-t-on l'ensemble de toutes les issues d'une expérience aléatoire ?",
+        choices: ["Une issue", "Un événement élémentaire", "L'univers", "Un événement contraire"],
+        correctIndex: 2,
+        hint: "L'ensemble de toutes les issues s'appelle l'univers, souvent noté Ω.",
+      },
+      {
+        stem: "Qu'est-ce qu'un événement élémentaire ?",
+        choices: [
+          "Un événement de probabilité 1",
+          "Un événement qui contient une seule issue",
+          "Un événement impossible",
+          "L'ensemble de toutes les issues",
+        ],
+        correctIndex: 1,
+        hint: "Un événement est élémentaire lorsqu'il ne contient qu'une seule issue.",
+      },
+      {
+        stem: "Que vaut la probabilité d'un événement impossible ?",
+        choices: ["0", "1/2", "1", "Cela dépend de l'expérience"],
+        correctIndex: 0,
+        hint: "Un événement de probabilité 0 ne se réalise jamais : c'est un événement impossible.",
+      },
+      {
+        stem: "Que vaut la probabilité d'un événement certain ?",
+        choices: ["0", "0,5", "1", "100"],
+        correctIndex: 2,
+        hint: "Un événement de probabilité 1 se réalise toujours.",
+      },
+      {
+        stem: "Une probabilité est toujours un nombre :",
+        choices: [
+          "compris entre 0 et 1",
+          "compris entre 0 et 100",
+          "supérieur à 1",
+          "entier",
+        ],
+        correctIndex: 0,
+        hint: "Une probabilité est un nombre compris entre 0 et 1.",
+      },
+      {
+        stem: "Que vaut la somme des probabilités de tous les événements élémentaires d'une expérience ?",
+        choices: ["0", "1/2", "1", "Cela dépend du nombre d'issues"],
+        correctIndex: 2,
+        hint: "La somme des probabilités des événements élémentaires est toujours égale à 1.",
+      },
+      {
+        stem: "Dans une situation d'équiprobabilité, comment calcule-t-on P(A) ?",
+        choices: [
+          "nombre d'issues réalisant A × nombre total d'issues",
+          "nombre d'issues réalisant A / nombre total d'issues",
+          "nombre total d'issues / nombre d'issues réalisant A",
+          "1 − nombre d'issues réalisant A",
+        ],
+        correctIndex: 1,
+        hint: "En équiprobabilité : P(A) = (nombre d'issues réalisant A) / (nombre d'issues possibles).",
+      },
+      {
+        stem: "Que dit la loi des grands nombres ?",
+        choices: [
+          "La probabilité d'un événement augmente avec le nombre d'expériences.",
+          "Les fréquences se stabilisent autour des probabilités quand on répète beaucoup l'expérience.",
+          "Plus on lance un dé, plus on a de chances d'obtenir 6.",
+          "La somme des fréquences est toujours égale à 1.",
+        ],
+        correctIndex: 1,
+        hint: "Loi des grands nombres : quand on répète un très grand nombre de fois l'expérience, la fréquence de chaque issue se stabilise vers sa probabilité.",
+      },
+      {
+        stem: "Si A est un événement, que désigne A̅ (lu \"A barre\") ?",
+        choices: [
+          "Le même événement A",
+          "Un événement impossible",
+          "L'événement contraire de A",
+          "L'univers",
+        ],
+        correctIndex: 2,
+        hint: "A̅ désigne l'événement contraire de A : il se réalise lorsque A ne se réalise pas.",
+      },
+    ];
+    return { kind: "mcq", ...pick(items) };
+  },
+
+  // ── ÉQUIPROBABILITÉ : sac de billes ─────────────────────────
+  billes: () => {
+    const r = randInt(2, 6);
+    const b = randInt(2, 6);
+    const v = randInt(2, 5);
+    const total = r + b + v;
+    const colors = [
+      { name: "rouge", count: r, plural: "rouges" },
+      { name: "bleue", count: b, plural: "bleues" },
+      { name: "verte", count: v, plural: "vertes" },
+    ];
+    const target = pick(colors);
+    return {
+      kind: "numeric",
+      stem: `Un sac contient ${r} billes rouges, ${b} billes bleues et ${v} billes vertes, indiscernables au toucher. On tire une bille au hasard. Quelle est la probabilité d'obtenir une bille ${target.name} ?`,
+      answer: target.count / total,
+      hint: `Il y a ${target.count} billes ${target.plural} sur ${total} billes au total : P = ${target.count}/${total} = ${fracStr(target.count, total)} ≈ ${fmtDecimal(target.count / total)}.`,
+    };
+  },
+
+  // ── DÉ À 6 FACES ────────────────────────────────────────────
+  de: () => {
+    const items = [
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir un nombre pair ?",
+        answer: 3 / 6,
+        hint: "Les issues paires sont 2, 4 et 6 : P = 3/6 = 1/2 = 0,5.",
+      },
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir un nombre impair ?",
+        answer: 3 / 6,
+        hint: "Les issues impaires sont 1, 3 et 5 : P = 3/6 = 1/2 = 0,5.",
+      },
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir un nombre supérieur ou égal à 5 ?",
+        answer: 2 / 6,
+        hint: "Les issues sont 5 et 6 : P = 2/6 = 1/3 ≈ 0,333.",
+      },
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir un nombre strictement supérieur à 4 ?",
+        answer: 2 / 6,
+        hint: "Les issues sont 5 et 6 : P = 2/6 = 1/3 ≈ 0,333.",
+      },
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir un multiple de 3 ?",
+        answer: 2 / 6,
+        hint: "Les multiples de 3 entre 1 et 6 sont 3 et 6 : P = 2/6 = 1/3 ≈ 0,333.",
+      },
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir le nombre 7 ?",
+        answer: 0,
+        hint: "Le 7 n'est pas une face du dé : événement impossible, P = 0.",
+      },
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir un nombre compris entre 1 et 6 ?",
+        answer: 1,
+        hint: "Toutes les issues conviennent : événement certain, P = 1.",
+      },
+      {
+        stem: "On lance un dé cubique équilibré. Quelle est la probabilité d'obtenir le 4 ?",
+        answer: 1 / 6,
+        hint: "Une seule face sur 6 : P = 1/6 ≈ 0,167.",
+      },
+    ];
+    return { kind: "numeric", ...pick(items) };
+  },
+
+  // ── ÉVÉNEMENT CONTRAIRE ─────────────────────────────────────
+  contraire: () => {
+    const variants = [
+      () => {
+        const num = randInt(1, 9);
+        const den = 10;
+        return {
+          stem: `On sait que P(A) = ${num/den}. Quelle est la probabilité de l'événement contraire A̅ ?`,
+          answer: 1 - num / den,
+          hint: `P(A̅) = 1 − P(A) = 1 − ${num/den} = ${1 - num/den}.`,
+        };
+      },
+      () => {
+        const num = randInt(1, 7);
+        const den = 8;
+        return {
+          stem: `On sait que P(A) = ${num}/${den}. Quelle est la probabilité de l'événement contraire A̅ ? (sous forme décimale ou fractionnaire)`,
+          answer: 1 - num / den,
+          hint: `P(A̅) = 1 − ${num}/${den} = ${den - num}/${den} = ${fmtDecimal(1 - num/den)}.`,
+        };
+      },
+      () => {
+        return {
+          stem: "Dans une classe, la probabilité qu'un élève tiré au sort soit une fille est de 0,55. Quelle est la probabilité que ce soit un garçon ?",
+          answer: 0.45,
+          hint: "Être un garçon est l'événement contraire d'être une fille : P = 1 − 0,55 = 0,45.",
+        };
+      },
+      () => {
+        return {
+          stem: "On tire une carte d'un jeu. La probabilité de tirer un cœur est 1/4. Quelle est la probabilité de ne PAS tirer un cœur ?",
+          answer: 3 / 4,
+          hint: "P(non cœur) = 1 − 1/4 = 3/4 = 0,75.",
+        };
+      },
+    ];
+    return { kind: "numeric", ...pick(variants)() };
+  },
+
+  // ── VRAI / FAUX ─────────────────────────────────────────────
+  vraiFaux: () => {
+    const items = [
+      {
+        stem: "Une probabilité peut être égale à 1,2.",
+        correct: false,
+        hint: "Faux : une probabilité est toujours comprise entre 0 et 1.",
+      },
+      {
+        stem: "Si P(A) = 0, alors A ne se réalise jamais.",
+        correct: true,
+        hint: "Vrai : un événement de probabilité 0 est un événement impossible.",
+      },
+      {
+        stem: "Si P(A) = 1, alors A se réalise toujours.",
+        correct: true,
+        hint: "Vrai : un événement de probabilité 1 est un événement certain.",
+      },
+      {
+        stem: "La somme des probabilités de tous les événements élémentaires d'une expérience est toujours égale à 1.",
+        correct: true,
+        hint: "Vrai : c'est une propriété fondamentale des probabilités.",
+      },
+      {
+        stem: "Une probabilité peut être négative.",
+        correct: false,
+        hint: "Faux : une probabilité est toujours positive (entre 0 et 1).",
+      },
+      {
+        stem: "Si je lance une pièce 10 fois et que j'obtiens 7 fois pile, alors la probabilité de pile est 0,7.",
+        correct: false,
+        hint: "Faux : c'est la fréquence observée qui est 0,7. La probabilité théorique reste 0,5. Avec un grand nombre de lancers, la fréquence se rapprochera de 0,5.",
+      },
+      {
+        stem: "P(A) + P(A̅) = 1 pour tout événement A.",
+        correct: true,
+        hint: "Vrai : un événement et son contraire couvrent tous les cas possibles.",
+      },
+      {
+        stem: "Toutes les expériences aléatoires sont des situations d'équiprobabilité.",
+        correct: false,
+        hint: "Faux : l'équiprobabilité n'a lieu que lorsque toutes les issues ont la même probabilité (par exemple un dé équilibré, mais pas un dé pipé).",
+      },
+    ];
+    return { kind: "tf", ...pick(items) };
+  },
+
+};
+
+const KEYS = ["vocabulaire", "billes", "de", "contraire", "vraiFaux"];
+
+// 5 types × 4 questions = 20
+const buildSession = () => {
+  const session = [];
+  const perType = TOTAL_QUESTIONS / KEYS.length; // 4
+
+  KEYS.forEach((k) => {
+    for (let i = 0; i < perType; i++) session.push(generators[k]());
+  });
+
+  // Mélange Fisher-Yates
+  for (let i = session.length - 1; i > 0; i--) {
+    const j = randInt(0, i);
+    [session[i], session[j]] = [session[j], session[i]];
+  }
+  return session;
+};
+
+// ─── Composant principal ──────────────────────────────────────
+function ProbabilitiesQuiz() {
+  const [phase, setPhase] = useState("home");
+  const [session, setSession] = useState([]);
+  const [index, setIndex] = useState(0);
+  const [input, setInput] = useState("");
+  const [selectedChoice, setSelectedChoice] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [showHint, setShowHint] = useState(false);
+  const [correct, setCorrect] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+
+  const start = () => {
+    setSession(buildSession());
+    setIndex(0);
+    setInput("");
+    setSelectedChoice(null);
+    setFeedback(null);
+    setShowHint(false);
+    setCorrect(0);
+    setStreak(0);
+    setBestStreak(0);
+    setPhase("playing");
+  };
+
+  const submit = () => {
+    if (feedback === "ok") return;
+    const q = session[index];
+    let ok = false;
+
+    if (q.kind === "numeric") {
+      const v = parseStudent(input);
+      if (Number.isNaN(v)) return;
+      ok = close(v, q.answer);
+    } else if (q.kind === "mcq") {
+      if (selectedChoice == null) return;
+      ok = selectedChoice === q.correctIndex;
+    } else if (q.kind === "tf") {
+      if (selectedChoice == null) return;
+      ok = (selectedChoice === 0) === q.correct; // 0 = Vrai, 1 = Faux
+    }
+
+    setFeedback(ok ? "ok" : "ko");
+    if (ok) {
+      setCorrect((c) => c + 1);
+      setStreak((s) => {
+        const ns = s + 1;
+        setBestStreak((b) => Math.max(b, ns));
+        return ns;
+      });
+    } else {
+      setStreak(0);
+    }
+  };
+
+  const next = () => {
+    if (index + 1 >= TOTAL_QUESTIONS) {
+      setPhase("done");
+      return;
+    }
+    setIndex((i) => i + 1);
+    setInput("");
+    setSelectedChoice(null);
+    setFeedback(null);
+    setShowHint(false);
+  };
+
+  const handleKey = (e) => {
+    if (e.key === "Enter") {
+      if (feedback === "ok") next();
+      else submit();
+    }
+  };
+
+  // ─── Écran d'accueil ────────────────────────────────────────
+  if (phase === "home") {
+    return (
+      <div className="min-h-screen w-full" style={styles.shell}>
+        <div className="max-w-3xl mx-auto px-6 py-16">
+          <p style={styles.eyebrow}>Troisième — Chap. 14</p>
+          <h1 style={styles.h1}>
+            Probabilités
+            <span style={styles.h1Accent}>.</span>
+          </h1>
+          <p style={styles.lede}>
+            Test de compréhension du cours en <strong>{TOTAL_QUESTIONS} questions</strong>.
+            Vocabulaire, calculs de probabilités, événement contraire et vrai/faux
+            se mélangent au hasard.
+          </p>
+          <p style={styles.ledeSecondary}>
+            Pour les questions numériques, tu peux répondre sous forme décimale
+            (<code style={styles.code}>0,5</code>) ou fractionnaire (<code style={styles.code}>1/2</code>).
+            Appuie sur <kbd style={styles.kbd}>Entrée</kbd> pour valider.
+          </p>
+
+          <button
+            onClick={start}
+            style={styles.startBtn}
+            onMouseEnter={(e) => Object.assign(e.currentTarget.style, { ...styles.startBtn, ...styles.startBtnHover })}
+            onMouseLeave={(e) => Object.assign(e.currentTarget.style, styles.startBtn)}
+          >
+            Commencer le test →
+          </button>
+
+          <footer style={styles.footer}>M. Bambini — collège</footer>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Écran de fin ───────────────────────────────────────────
+  if (phase === "done") {
+    const rate = Math.round((correct / TOTAL_QUESTIONS) * 100);
+    let comment;
+    if (rate >= 90) comment = "Excellent. Le cours est bien compris.";
+    else if (rate >= 70) comment = "Bien. Quelques notions à revoir, mais l'essentiel est solide.";
+    else if (rate >= 50) comment = "Correct. Reprends le cours, notamment les passages sur lesquels tu as hésité.";
+    else comment = "À reprendre. Relis attentivement le cours, puis refais une session.";
+
+    return (
+      <div className="min-h-screen w-full" style={styles.shell}>
+        <div className="max-w-3xl mx-auto px-6 py-16">
+          <p style={styles.eyebrow}>Test terminé</p>
+          <h1 style={styles.h1Result}>
+            {correct}<span style={styles.scoreSlash}>/</span>{TOTAL_QUESTIONS}
+          </h1>
+          <p style={styles.resultRate}>{rate} % de réussite</p>
+          <p style={styles.resultComment}>{comment}</p>
+
+          <div style={styles.resultStats}>
+            <div style={styles.resultStat}>
+              <div style={styles.resultStatVal}>{correct}</div>
+              <div style={styles.resultStatLabel}>Bonnes réponses</div>
+            </div>
+            <div style={styles.resultStat}>
+              <div style={styles.resultStatVal}>{TOTAL_QUESTIONS - correct}</div>
+              <div style={styles.resultStatLabel}>Erreurs</div>
+            </div>
+            <div style={styles.resultStat}>
+              <div style={styles.resultStatVal}>{bestStreak}</div>
+              <div style={styles.resultStatLabel}>Meilleure série</div>
+            </div>
+          </div>
+
+          <button onClick={start} style={styles.startBtn}>
+            Recommencer le test →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Écran d'exercice ───────────────────────────────────────
+  const question = session[index];
+  const progress = ((index + (feedback === "ok" ? 1 : 0)) / TOTAL_QUESTIONS) * 100;
+
+  const canSubmit =
+    (question.kind === "numeric" && input.trim() !== "") ||
+    ((question.kind === "mcq" || question.kind === "tf") && selectedChoice != null);
+
+  return (
+    <div className="min-h-screen w-full" style={styles.shell}>
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        <div style={styles.topbar}>
+          <span style={styles.questionCounter}>
+            Question <strong>{index + 1}</strong> sur {TOTAL_QUESTIONS}
+          </span>
+          <span style={styles.statsBox}>
+            <strong>{correct}</strong> bonnes · série <strong>{streak}</strong>
+          </span>
+        </div>
+
+        <div style={styles.progressTrack}>
+          <div style={{ ...styles.progressFill, width: `${progress}%` }} />
+        </div>
+
+        <div style={styles.questionCard}>
+          <p style={styles.questionText}>{question.stem}</p>
+
+          {/* Réponse numérique */}
+          {question.kind === "numeric" && (
+            <div style={styles.answerRow}>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  if (feedback === "ko") setFeedback(null);
+                }}
+                onKeyDown={handleKey}
+                autoFocus
+                placeholder="…"
+                style={{
+                  ...styles.input,
+                  ...(feedback === "ok" ? styles.inputOk : {}),
+                  ...(feedback === "ko" ? styles.inputKo : {}),
+                }}
+                disabled={feedback === "ok"}
+              />
+            </div>
+          )}
+
+          {/* QCM */}
+          {question.kind === "mcq" && (
+            <div style={styles.choicesList}>
+              {question.choices.map((choice, i) => {
+                const isSelected = selectedChoice === i;
+                const isCorrectChoice = i === question.correctIndex;
+                let extra = {};
+                if (feedback === "ok" && isSelected) extra = styles.choiceOk;
+                else if (feedback === "ko" && isSelected) extra = styles.choiceKo;
+                else if (feedback === "ko" && isCorrectChoice) extra = styles.choiceReveal;
+                else if (isSelected) extra = styles.choiceSelected;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      if (feedback === "ok") return;
+                      setSelectedChoice(i);
+                      if (feedback === "ko") setFeedback(null);
+                    }}
+                    style={{ ...styles.choiceBtn, ...extra }}
+                    disabled={feedback === "ok"}
+                  >
+                    <span style={styles.choiceLetter}>{String.fromCharCode(65 + i)}</span>
+                    <span>{choice}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Vrai / Faux */}
+          {question.kind === "tf" && (
+            <div style={styles.tfRow}>
+              {["Vrai", "Faux"].map((label, i) => {
+                const isSelected = selectedChoice === i;
+                const isCorrectChoice = (i === 0) === question.correct;
+                let extra = {};
+                if (feedback === "ok" && isSelected) extra = styles.choiceOk;
+                else if (feedback === "ko" && isSelected) extra = styles.choiceKo;
+                else if (feedback === "ko" && isCorrectChoice) extra = styles.choiceReveal;
+                else if (isSelected) extra = styles.choiceSelected;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      if (feedback === "ok") return;
+                      setSelectedChoice(i);
+                      if (feedback === "ko") setFeedback(null);
+                    }}
+                    style={{ ...styles.tfBtn, ...extra }}
+                    disabled={feedback === "ok"}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {feedback === "ok" && (
+            <div style={styles.feedbackOk}>
+              <strong>Correct.</strong> {question.hint}
+            </div>
+          )}
+          {feedback === "ko" && (
+            <div style={styles.feedbackKo}>
+              Pas tout à fait. {showHint ? question.hint : "Vérifie ta réponse, ou demande un indice."}
+            </div>
+          )}
+        </div>
+
+        <div style={styles.actions}>
+          {feedback !== "ok" ? (
+            <>
+              <button onClick={submit} style={styles.primaryBtn} disabled={!canSubmit}>
+                Vérifier
+              </button>
+              {feedback === "ko" && !showHint && (
+                <button onClick={() => setShowHint(true)} style={styles.secondaryBtn}>
+                  Voir l'indice
+                </button>
+              )}
+              <button onClick={next} style={styles.linkBtn}>
+                Passer →
+              </button>
+            </>
+          ) : (
+            <button onClick={next} style={styles.primaryBtn} autoFocus>
+              {index + 1 >= TOTAL_QUESTIONS ? "Voir le score →" : "Question suivante →"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Styles ────────────────────────────────────────────────────
+const ink = "#1a1a1a";
+const paper = "#f7f3ec";
+const accent = "#8b1a1a";
+const ok = "#2d5a3d";
+const muted = "#6b6358";
+const line = "#d9d2c4";
+
+const styles = {
+  shell: {
+    background: paper,
+    color: ink,
+    fontFamily: '"EB Garamond", Georgia, "Times New Roman", serif',
+    backgroundImage:
+      "radial-gradient(circle at 20% 10%, rgba(139,26,26,0.04), transparent 40%), radial-gradient(circle at 80% 90%, rgba(0,0,0,0.04), transparent 40%)",
+  },
+  eyebrow: {
+    fontFamily: '"Inter", -apple-system, sans-serif',
+    fontSize: 12,
+    letterSpacing: "0.18em",
+    textTransform: "uppercase",
+    color: muted,
+    marginBottom: 12,
+    fontWeight: 500,
+  },
+  h1: {
+    fontSize: "clamp(48px, 8vw, 80px)",
+    fontWeight: 400,
+    fontStyle: "italic",
+    letterSpacing: "-0.02em",
+    lineHeight: 0.95,
+    margin: 0,
+  },
+  h1Accent: { color: accent },
+  h1Result: {
+    fontSize: "clamp(72px, 12vw, 140px)",
+    fontWeight: 400,
+    fontStyle: "italic",
+    letterSpacing: "-0.03em",
+    lineHeight: 1,
+    margin: "8px 0 0 0",
+    color: ink,
+  },
+  scoreSlash: { color: line, margin: "0 8px" },
+  resultRate: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    letterSpacing: "0.15em",
+    textTransform: "uppercase",
+    color: accent,
+    marginTop: 16,
+    fontWeight: 600,
+  },
+  resultComment: {
+    fontSize: 22,
+    fontStyle: "italic",
+    lineHeight: 1.5,
+    color: "#3a3530",
+    marginTop: 32,
+    maxWidth: 560,
+  },
+  resultStats: {
+    display: "flex",
+    gap: 48,
+    marginTop: 56,
+    marginBottom: 56,
+    paddingTop: 32,
+    borderTop: `1px solid ${line}`,
+    flexWrap: "wrap",
+  },
+  resultStat: { fontFamily: '"Inter", sans-serif' },
+  resultStatVal: {
+    fontFamily: '"EB Garamond", serif',
+    fontSize: 40,
+    fontStyle: "italic",
+    color: ink,
+    lineHeight: 1,
+  },
+  resultStatLabel: {
+    fontSize: 12,
+    color: muted,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    marginTop: 8,
+  },
+  lede: {
+    marginTop: 28,
+    fontSize: 19,
+    lineHeight: 1.55,
+    color: "#3a3530",
+    maxWidth: 580,
+  },
+  ledeSecondary: {
+    marginTop: 12,
+    fontSize: 16,
+    lineHeight: 1.55,
+    color: muted,
+    fontStyle: "italic",
+    maxWidth: 580,
+  },
+  code: {
+    fontFamily: '"JetBrains Mono", "SF Mono", monospace',
+    fontSize: 14,
+    background: "#ece5d6",
+    padding: "1px 6px",
+    borderRadius: 3,
+    fontStyle: "normal",
+  },
+  kbd: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 12,
+    padding: "2px 7px",
+    border: `1px solid ${line}`,
+    borderRadius: 4,
+    background: "#fff",
+    boxShadow: "0 1px 0 rgba(0,0,0,0.08)",
+    fontStyle: "normal",
+  },
+  startBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 15,
+    fontWeight: 500,
+    letterSpacing: "0.02em",
+    padding: "16px 32px",
+    background: ink,
+    color: paper,
+    border: "none",
+    borderRadius: 4,
+    cursor: "pointer",
+    marginTop: 40,
+    transition: "all 200ms ease",
+  },
+  startBtnHover: {
+    background: accent,
+    transform: "translateY(-1px)",
+    boxShadow: "0 6px 20px -8px rgba(139,26,26,0.5)",
+  },
+  footer: {
+    marginTop: 80,
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 12,
+    color: muted,
+    letterSpacing: "0.05em",
+  },
+  topbar: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  questionCounter: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 13,
+    color: muted,
+    letterSpacing: "0.05em",
+  },
+  statsBox: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 13,
+    color: muted,
+  },
+  progressTrack: {
+    height: 2,
+    background: line,
+    borderRadius: 1,
+    overflow: "hidden",
+    marginBottom: 40,
+  },
+  progressFill: {
+    height: "100%",
+    background: ink,
+    transition: "width 400ms cubic-bezier(0.22, 1, 0.36, 1)",
+  },
+  questionCard: {
+    background: "#fff",
+    border: `1px solid ${line}`,
+    borderRadius: 6,
+    padding: "44px 40px",
+    marginBottom: 24,
+    boxShadow: "0 1px 0 rgba(0,0,0,0.03)",
+  },
+  questionText: {
+    fontSize: "clamp(20px, 2.5vw, 26px)",
+    lineHeight: 1.5,
+    margin: 0,
+    color: ink,
+  },
+  answerRow: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 12,
+    marginTop: 32,
+  },
+  input: {
+    fontFamily: '"EB Garamond", Georgia, serif',
+    fontSize: 32,
+    fontStyle: "italic",
+    border: "none",
+    borderBottom: `2px solid ${ink}`,
+    background: "transparent",
+    padding: "6px 4px",
+    width: 200,
+    outline: "none",
+    color: ink,
+    transition: "border-color 200ms ease",
+  },
+  inputOk: { borderBottomColor: ok, color: ok },
+  inputKo: { borderBottomColor: accent, color: accent },
+  choicesList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    marginTop: 28,
+  },
+  choiceBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    textAlign: "left",
+    padding: "14px 18px",
+    background: "#fdfaf3",
+    border: `1px solid ${line}`,
+    borderRadius: 4,
+    cursor: "pointer",
+    fontFamily: '"EB Garamond", serif',
+    fontSize: 18,
+    color: ink,
+    transition: "all 150ms ease",
+  },
+  choiceSelected: {
+    border: `1px solid ${ink}`,
+    background: "#fff",
+    boxShadow: "inset 0 0 0 1px " + ink,
+  },
+  choiceOk: {
+    borderColor: ok,
+    background: "#eaf2ec",
+    color: "#1f3d2a",
+    boxShadow: "inset 0 0 0 1px " + ok,
+  },
+  choiceKo: {
+    borderColor: accent,
+    background: "#f5e6e6",
+    color: "#5a1414",
+    boxShadow: "inset 0 0 0 1px " + accent,
+  },
+  choiceReveal: {
+    borderColor: ok,
+    background: "#eaf2ec",
+    color: "#1f3d2a",
+  },
+  choiceLetter: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: "0.05em",
+    color: muted,
+    width: 18,
+    flexShrink: 0,
+  },
+  tfRow: {
+    display: "flex",
+    gap: 12,
+    marginTop: 28,
+  },
+  tfBtn: {
+    flex: 1,
+    padding: "18px 24px",
+    background: "#fdfaf3",
+    border: `1px solid ${line}`,
+    borderRadius: 4,
+    cursor: "pointer",
+    fontFamily: '"EB Garamond", serif',
+    fontSize: 24,
+    fontStyle: "italic",
+    color: ink,
+    transition: "all 150ms ease",
+  },
+  feedbackOk: {
+    marginTop: 24,
+    padding: "14px 18px",
+    background: "#eaf2ec",
+    borderLeft: `3px solid ${ok}`,
+    borderRadius: 3,
+    fontSize: 16,
+    lineHeight: 1.5,
+    color: "#1f3d2a",
+  },
+  feedbackKo: {
+    marginTop: 24,
+    padding: "14px 18px",
+    background: "#f5e6e6",
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: 3,
+    fontSize: 16,
+    lineHeight: 1.5,
+    color: "#5a1414",
+  },
+  actions: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  primaryBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    fontWeight: 500,
+    letterSpacing: "0.02em",
+    padding: "12px 24px",
+    background: ink,
+    color: paper,
+    border: "none",
+    borderRadius: 4,
+    cursor: "pointer",
+    transition: "all 150ms ease",
+  },
+  secondaryBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    fontWeight: 500,
+    padding: "12px 20px",
+    background: "transparent",
+    color: ink,
+    border: `1px solid ${ink}`,
+    borderRadius: 4,
+    cursor: "pointer",
+  },
+  linkBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    background: "transparent",
+    color: muted,
+    border: "none",
+    cursor: "pointer",
+    padding: "12px 8px",
+    marginLeft: "auto",
+  },
+};
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<ProbabilitiesQuiz />);
+</script>
+</body>
+</html>

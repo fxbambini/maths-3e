@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pourcentages — Entraînement (3e)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { background: #f7f3ec; font-family: "EB Garamond", Georgia, serif; }
+  #root { min-height: 100vh; }
+  /* Tailwind-like utility classes used in the app */
+  .min-h-screen { min-height: 100vh; }
+  .w-full { width: 100%; }
+  .max-w-3xl { max-width: 48rem; }
+  .mx-auto { margin-left: auto; margin-right: auto; }
+  .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .py-10 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
+  .py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+  .py-16 { padding-top: 4rem; padding-bottom: 4rem; }
+  button { font-family: inherit; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+// ─── Utilitaires ───────────────────────────────────────────────
+const fmtCoef = (x) => {
+  const s = x.toFixed(4);
+  return parseFloat(s).toString().replace(".", ",");
+};
+
+const parseStudent = (raw) => {
+  if (raw == null) return NaN;
+  const cleaned = String(raw).trim().replace(",", ".").replace(/\s/g, "");
+  if (cleaned === "") return NaN;
+  return Number(cleaned);
+};
+
+const close = (a, b, eps = 1e-4) => Math.abs(a - b) < eps;
+
+const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+const TOTAL_QUESTIONS = 20;
+
+// ─── Générateurs ──────────────────────────────────────────────
+// Petit pool de couples (effectif, partie) qui donnent un pourcentage entier
+// et restent réalistes pour des exercices de troisième.
+const PROPORTION_CASES = [
+  // (total, partie, pourcentage)
+  [20, 5, 25], [20, 4, 20], [20, 3, 15], [20, 7, 35], [20, 12, 60],
+  [25, 5, 20], [25, 10, 40], [25, 15, 60], [25, 20, 80],
+  [40, 10, 25], [40, 6, 15], [40, 18, 45], [40, 26, 65],
+  [50, 5, 10], [50, 15, 30], [50, 20, 40], [50, 35, 70],
+  [80, 20, 25], [80, 12, 15], [80, 60, 75],
+  [100, 28, 28], [100, 47, 47], [100, 73, 73],
+  [200, 50, 25], [200, 30, 15], [200, 160, 80],
+  [28, 7, 25], // référence directe au cours (yeux bleus)
+];
+
+const generators = {
+  // Calculer une proportion : on demande la fraction sous forme décimale
+  // Ex. "Sur 20 élèves, 5 sont blonds. Quelle est la proportion d'élèves blonds ?"
+  proportion: () => {
+    const [total, part] = PROPORTION_CASES[randInt(0, PROPORTION_CASES.length - 1)];
+    const contexts = [
+      { stem: `Dans une classe de ${total} élèves, ${part} ont les yeux bleus. Quelle est la proportion d'élèves aux yeux bleus ?`, what: "élèves aux yeux bleus" },
+      { stem: `Sur ${total} produits fabriqués, ${part} sont défectueux. Quelle est la proportion de produits défectueux ?`, what: "produits défectueux" },
+      { stem: `Une équipe a remporté ${part} matchs sur ${total} disputés. Quelle est la proportion de matchs gagnés ?`, what: "matchs gagnés" },
+      { stem: `Sur ${total} fruits récoltés, ${part} ont été jetés. Quelle est la proportion de fruits jetés ?`, what: "fruits jetés" },
+    ];
+    const ctx = contexts[randInt(0, contexts.length - 1)];
+    return {
+      stem: ctx.stem,
+      answer: part / total,
+      hint: `Proportion = ${part}/${total} = ${fmtCoef(part / total)}.`,
+    };
+  },
+
+  // Calculer un pourcentage à partir d'une situation
+  // Ex. "Sur 20 élèves, 5 sont blonds. Quel pourcentage cela représente-t-il ?"
+  calculerPourcentage: () => {
+    const [total, part, pct] = PROPORTION_CASES[randInt(0, PROPORTION_CASES.length - 1)];
+    const contexts = [
+      `Dans une classe de ${total} élèves, ${part} portent des lunettes. Quel pourcentage cela représente-t-il ?`,
+      `Sur ${total} habitants d'un village, ${part} sont des enfants. Quel pourcentage cela représente-t-il ?`,
+      `Sur ${total} g de fromage, il y a ${part} g de matières grasses. Quel est le pourcentage de matières grasses ?`,
+      `Sur ${total} candidats, ${part} ont réussi l'examen. Quel est le pourcentage de réussite ?`,
+      `Une clé USB de ${total} Go contient ${part} Go de fichiers. Quel pourcentage de la clé est utilisé ?`,
+    ];
+    return {
+      stem: contexts[randInt(0, contexts.length - 1)],
+      answer: pct,
+      unit: "%",
+      hint: `Proportion = ${part}/${total} = ${fmtCoef(part / total)} = ${pct}/100, soit ${pct} %.`,
+    };
+  },
+
+  prendre: () => {
+    const taux = [5, 8, 10, 12, 15, 20, 25, 30, 40, 50, 60, 75, 80][randInt(0, 12)];
+    return {
+      stem: `Prendre ${taux} % d'une quantité, c'est multiplier cette quantité par`,
+      answer: taux / 100,
+      hint: `Prendre ${taux} % revient à multiplier par ${taux}/100, soit ${fmtCoef(taux / 100)}.`,
+    };
+  },
+
+  augmenter: () => {
+    const taux = [3, 5, 6, 8, 10, 12, 15, 20, 25, 30, 50][randInt(0, 10)];
+    return {
+      stem: `Augmenter une quantité de ${taux} %, c'est multiplier cette quantité par`,
+      answer: 1 + taux / 100,
+      hint: `Augmenter de ${taux} %, c'est multiplier par 1 + ${taux}/100 = ${fmtCoef(1 + taux / 100)}.`,
+    };
+  },
+
+  diminuer: () => {
+    const taux = [3, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50][randInt(0, 11)];
+    return {
+      stem: `Diminuer une quantité de ${taux} %, c'est multiplier cette quantité par`,
+      answer: 1 - taux / 100,
+      hint: `Diminuer de ${taux} %, c'est multiplier par 1 − ${taux}/100 = ${fmtCoef(1 - taux / 100)}.`,
+    };
+  },
+
+  retrouverPourcentage: () => {
+    const variants = [
+      () => {
+        const t = [4, 5, 6, 8, 10, 12, 15, 20, 25][randInt(0, 8)];
+        return {
+          stem: `Multiplier par ${fmtCoef(1 + t / 100)} revient à augmenter de … %`,
+          answer: t,
+          unit: "%",
+          hint: `${fmtCoef(1 + t / 100)} = 1 + ${t}/100, donc augmentation de ${t} %.`,
+        };
+      },
+      () => {
+        const t = [5, 8, 10, 12, 15, 20, 25, 30][randInt(0, 7)];
+        return {
+          stem: `Multiplier par ${fmtCoef(1 - t / 100)} revient à diminuer de … %`,
+          answer: t,
+          unit: "%",
+          hint: `${fmtCoef(1 - t / 100)} = 1 − ${t}/100, donc diminution de ${t} %.`,
+        };
+      },
+      () => {
+        const t = [10, 20, 25, 30, 40, 50, 75, 80][randInt(0, 7)];
+        return {
+          stem: `Multiplier par ${fmtCoef(t / 100)} revient à prendre … % de la quantité`,
+          answer: t,
+          unit: "%",
+          hint: `${fmtCoef(t / 100)} = ${t}/100, donc on prend ${t} % de la quantité.`,
+        };
+      },
+    ];
+    return variants[randInt(0, variants.length - 1)]();
+  },
+
+  application: () => {
+    const variants = [
+      () => {
+        const prix = [40, 50, 60, 80, 100, 120, 150, 200, 240][randInt(0, 8)];
+        const t = [5, 10, 15, 20, 25][randInt(0, 4)];
+        return {
+          stem: `Un article coûte ${prix} €. Son prix augmente de ${t} %. Quel est le nouveau prix ? (en €)`,
+          answer: prix * (1 + t / 100),
+          unit: "€",
+          hint: `Nouveau prix = ${prix} × (1 + ${t}/100) = ${prix} × ${fmtCoef(1 + t / 100)} = ${fmtCoef(prix * (1 + t / 100))} €.`,
+        };
+      },
+      () => {
+        const prix = [40, 50, 60, 80, 100, 120, 150, 200, 240][randInt(0, 8)];
+        const t = [5, 10, 15, 20, 25, 30, 50][randInt(0, 6)];
+        return {
+          stem: `Un article coûte ${prix} €. Son prix diminue de ${t} %. Quel est le nouveau prix ? (en €)`,
+          answer: prix * (1 - t / 100),
+          unit: "€",
+          hint: `Nouveau prix = ${prix} × (1 − ${t}/100) = ${prix} × ${fmtCoef(1 - t / 100)} = ${fmtCoef(prix * (1 - t / 100))} €.`,
+        };
+      },
+      () => {
+        const total = [20, 25, 40, 50, 80, 100, 200][randInt(0, 6)];
+        const taux = [10, 20, 25, 40, 50, 75][randInt(0, 5)];
+        const part = (total * taux) / 100;
+        if (!Number.isInteger(part)) return generators.application();
+        return {
+          stem: `Dans une classe de ${total} élèves, ${taux} % portent des lunettes. Combien d'élèves portent des lunettes ?`,
+          answer: part,
+          unit: "élèves",
+          hint: `${taux} % de ${total} = ${total} × ${taux}/100 = ${part} élèves.`,
+        };
+      },
+    ];
+    return variants[randInt(0, variants.length - 1)]();
+  },
+};
+
+const KEYS = [
+  "proportion",
+  "calculerPourcentage",
+  "prendre",
+  "augmenter",
+  "diminuer",
+  "retrouverPourcentage",
+  "application",
+];
+
+// Construit une session de 20 questions équilibrée puis mélangée
+// 7 types × 2 questions = 14, puis 6 questions supplémentaires tirées au hasard
+const buildSession = () => {
+  const session = [];
+  const perType = Math.floor(TOTAL_QUESTIONS / KEYS.length); // 2 par type
+  const remainder = TOTAL_QUESTIONS - perType * KEYS.length; // 6
+
+  KEYS.forEach((k) => {
+    for (let i = 0; i < perType; i++) session.push(generators[k]());
+  });
+  for (let i = 0; i < remainder; i++) {
+    const k = KEYS[randInt(0, KEYS.length - 1)];
+    session.push(generators[k]());
+  }
+
+  // Mélange Fisher-Yates
+  for (let i = session.length - 1; i > 0; i--) {
+    const j = randInt(0, i);
+    [session[i], session[j]] = [session[j], session[i]];
+  }
+  return session;
+};
+
+// ─── Composant principal ──────────────────────────────────────
+function PercentagesPractice() {
+  const [phase, setPhase] = useState("home"); // home | playing | done
+  const [session, setSession] = useState([]);
+  const [index, setIndex] = useState(0);
+  const [input, setInput] = useState("");
+  const [feedback, setFeedback] = useState(null);
+  const [showHint, setShowHint] = useState(false);
+  const [correct, setCorrect] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+
+  const start = () => {
+    setSession(buildSession());
+    setIndex(0);
+    setInput("");
+    setFeedback(null);
+    setShowHint(false);
+    setCorrect(0);
+    setStreak(0);
+    setBestStreak(0);
+    setPhase("playing");
+  };
+
+  const submit = () => {
+    if (feedback === "ok") return;
+    const v = parseStudent(input);
+    if (Number.isNaN(v)) return;
+    const ok = close(v, session[index].answer);
+    setFeedback(ok ? "ok" : "ko");
+    if (ok) {
+      setCorrect((c) => c + 1);
+      setStreak((s) => {
+        const ns = s + 1;
+        setBestStreak((b) => Math.max(b, ns));
+        return ns;
+      });
+    } else {
+      setStreak(0);
+    }
+  };
+
+  const next = () => {
+    if (index + 1 >= TOTAL_QUESTIONS) {
+      setPhase("done");
+      return;
+    }
+    setIndex((i) => i + 1);
+    setInput("");
+    setFeedback(null);
+    setShowHint(false);
+  };
+
+  const handleKey = (e) => {
+    if (e.key === "Enter") {
+      if (feedback === "ok") next();
+      else submit();
+    }
+  };
+
+  // ─── Écran d'accueil ────────────────────────────────────────
+  if (phase === "home") {
+    return (
+      <div className="min-h-screen w-full" style={styles.shell}>
+        <div className="max-w-3xl mx-auto px-6 py-16">
+          <p style={styles.eyebrow}>Troisième — Chap. 12</p>
+          <h1 style={styles.h1}>
+            Pourcentages
+            <span style={styles.h1Accent}>.</span>
+          </h1>
+          <p style={styles.lede}>
+            Une session de <strong>{TOTAL_QUESTIONS} questions</strong> tirées au hasard,
+            mélangeant tous les types d'exercices : calculer une proportion, exprimer
+            un pourcentage, prendre un pourcentage d'une quantité, augmenter, diminuer,
+            lecture inverse d'un coefficient, et applications numériques.
+          </p>
+          <p style={styles.ledeSecondary}>
+            Réponds avec une virgule (par exemple <code style={styles.code}>1,15</code>),
+            puis appuie sur <kbd style={styles.kbd}>Entrée</kbd>.
+          </p>
+
+          <button
+            onClick={start}
+            style={styles.startBtn}
+            onMouseEnter={(e) => Object.assign(e.currentTarget.style, { ...styles.startBtn, ...styles.startBtnHover })}
+            onMouseLeave={(e) => Object.assign(e.currentTarget.style, styles.startBtn)}
+          >
+            Commencer la session →
+          </button>
+
+          <footer style={styles.footer}>
+            M. Bambini — collège
+          </footer>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Écran de fin ───────────────────────────────────────────
+  if (phase === "done") {
+    const rate = Math.round((correct / TOTAL_QUESTIONS) * 100);
+    let comment;
+    if (rate >= 90) comment = "Excellent. Les automatismes sont solides.";
+    else if (rate >= 70) comment = "Bien. Quelques erreurs à revoir, mais l'essentiel est là.";
+    else if (rate >= 50) comment = "Correct. Reprends le cours sur les coefficients multiplicateurs et recommence.";
+    else comment = "À reprendre depuis le cours. Refais une session après une relecture attentive.";
+
+    return (
+      <div className="min-h-screen w-full" style={styles.shell}>
+        <div className="max-w-3xl mx-auto px-6 py-16">
+          <p style={styles.eyebrow}>Session terminée</p>
+          <h1 style={styles.h1Result}>
+            {correct}<span style={styles.scoreSlash}>/</span>{TOTAL_QUESTIONS}
+          </h1>
+          <p style={styles.resultRate}>{rate} % de réussite</p>
+          <p style={styles.resultComment}>{comment}</p>
+
+          <div style={styles.resultStats}>
+            <div style={styles.resultStat}>
+              <div style={styles.resultStatVal}>{correct}</div>
+              <div style={styles.resultStatLabel}>Bonnes réponses</div>
+            </div>
+            <div style={styles.resultStat}>
+              <div style={styles.resultStatVal}>{TOTAL_QUESTIONS - correct}</div>
+              <div style={styles.resultStatLabel}>Erreurs</div>
+            </div>
+            <div style={styles.resultStat}>
+              <div style={styles.resultStatVal}>{bestStreak}</div>
+              <div style={styles.resultStatLabel}>Meilleure série</div>
+            </div>
+          </div>
+
+          <button onClick={start} style={styles.startBtn}>
+            Recommencer une session →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Écran d'exercice ───────────────────────────────────────
+  const question = session[index];
+  const expectedUnit = question?.unit ?? null;
+  const progress = ((index + (feedback === "ok" ? 1 : 0)) / TOTAL_QUESTIONS) * 100;
+
+  return (
+    <div className="min-h-screen w-full" style={styles.shell}>
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        {/* Barre de progression */}
+        <div style={styles.topbar}>
+          <span style={styles.questionCounter}>
+            Question <strong>{index + 1}</strong> sur {TOTAL_QUESTIONS}
+          </span>
+          <span style={styles.statsBox}>
+            <strong>{correct}</strong> bonnes · série <strong>{streak}</strong>
+          </span>
+        </div>
+
+        <div style={styles.progressTrack}>
+          <div style={{ ...styles.progressFill, width: `${progress}%` }} />
+        </div>
+
+        {/* Carte question */}
+        <div style={styles.questionCard}>
+          <p style={styles.questionText}>{question.stem}</p>
+
+          <div style={styles.answerRow}>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                if (feedback === "ko") setFeedback(null);
+              }}
+              onKeyDown={handleKey}
+              autoFocus
+              placeholder="…"
+              style={{
+                ...styles.input,
+                ...(feedback === "ok" ? styles.inputOk : {}),
+                ...(feedback === "ko" ? styles.inputKo : {}),
+              }}
+              disabled={feedback === "ok"}
+            />
+            {expectedUnit && <span style={styles.unit}>{expectedUnit}</span>}
+          </div>
+
+          {feedback === "ok" && (
+            <div style={styles.feedbackOk}>
+              <strong>Correct.</strong> {question.hint}
+            </div>
+          )}
+          {feedback === "ko" && (
+            <div style={styles.feedbackKo}>
+              Pas tout à fait. {showHint ? question.hint : "Vérifie ton calcul, ou demande un indice."}
+            </div>
+          )}
+        </div>
+
+        <div style={styles.actions}>
+          {feedback !== "ok" ? (
+            <>
+              <button onClick={submit} style={styles.primaryBtn} disabled={input.trim() === ""}>
+                Vérifier
+              </button>
+              {feedback === "ko" && !showHint && (
+                <button onClick={() => setShowHint(true)} style={styles.secondaryBtn}>
+                  Voir l'indice
+                </button>
+              )}
+              <button onClick={next} style={styles.linkBtn}>
+                Passer →
+              </button>
+            </>
+          ) : (
+            <button onClick={next} style={styles.primaryBtn} autoFocus>
+              {index + 1 >= TOTAL_QUESTIONS ? "Voir le score →" : "Question suivante →"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Styles ────────────────────────────────────────────────────
+const ink = "#1a1a1a";
+const paper = "#f7f3ec";
+const accent = "#8b1a1a";
+const ok = "#2d5a3d";
+const muted = "#6b6358";
+const line = "#d9d2c4";
+
+const styles = {
+  shell: {
+    background: paper,
+    color: ink,
+    fontFamily: '"EB Garamond", Georgia, "Times New Roman", serif',
+    backgroundImage:
+      "radial-gradient(circle at 20% 10%, rgba(139,26,26,0.04), transparent 40%), radial-gradient(circle at 80% 90%, rgba(0,0,0,0.04), transparent 40%)",
+  },
+  eyebrow: {
+    fontFamily: '"Inter", -apple-system, sans-serif',
+    fontSize: 12,
+    letterSpacing: "0.18em",
+    textTransform: "uppercase",
+    color: muted,
+    marginBottom: 12,
+    fontWeight: 500,
+  },
+  h1: {
+    fontSize: "clamp(48px, 8vw, 80px)",
+    fontWeight: 400,
+    fontStyle: "italic",
+    letterSpacing: "-0.02em",
+    lineHeight: 0.95,
+    margin: 0,
+  },
+  h1Accent: { color: accent },
+  h1Result: {
+    fontSize: "clamp(72px, 12vw, 140px)",
+    fontWeight: 400,
+    fontStyle: "italic",
+    letterSpacing: "-0.03em",
+    lineHeight: 1,
+    margin: "8px 0 0 0",
+    color: ink,
+  },
+  scoreSlash: {
+    color: line,
+    margin: "0 8px",
+  },
+  resultRate: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    letterSpacing: "0.15em",
+    textTransform: "uppercase",
+    color: accent,
+    marginTop: 16,
+    fontWeight: 600,
+  },
+  resultComment: {
+    fontSize: 22,
+    fontStyle: "italic",
+    lineHeight: 1.5,
+    color: "#3a3530",
+    marginTop: 32,
+    maxWidth: 560,
+  },
+  resultStats: {
+    display: "flex",
+    gap: 48,
+    marginTop: 56,
+    marginBottom: 56,
+    paddingTop: 32,
+    borderTop: `1px solid ${line}`,
+    flexWrap: "wrap",
+  },
+  resultStat: {
+    fontFamily: '"Inter", sans-serif',
+  },
+  resultStatVal: {
+    fontFamily: '"EB Garamond", serif',
+    fontSize: 40,
+    fontStyle: "italic",
+    color: ink,
+    lineHeight: 1,
+  },
+  resultStatLabel: {
+    fontSize: 12,
+    color: muted,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    marginTop: 8,
+  },
+  lede: {
+    marginTop: 28,
+    fontSize: 19,
+    lineHeight: 1.55,
+    color: "#3a3530",
+    maxWidth: 580,
+  },
+  ledeSecondary: {
+    marginTop: 12,
+    fontSize: 16,
+    lineHeight: 1.55,
+    color: muted,
+    fontStyle: "italic",
+    maxWidth: 580,
+  },
+  code: {
+    fontFamily: '"JetBrains Mono", "SF Mono", monospace',
+    fontSize: 14,
+    background: "#ece5d6",
+    padding: "1px 6px",
+    borderRadius: 3,
+    fontStyle: "normal",
+  },
+  kbd: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 12,
+    padding: "2px 7px",
+    border: `1px solid ${line}`,
+    borderRadius: 4,
+    background: "#fff",
+    boxShadow: "0 1px 0 rgba(0,0,0,0.08)",
+    fontStyle: "normal",
+  },
+  startBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 15,
+    fontWeight: 500,
+    letterSpacing: "0.02em",
+    padding: "16px 32px",
+    background: ink,
+    color: paper,
+    border: "none",
+    borderRadius: 4,
+    cursor: "pointer",
+    marginTop: 40,
+    transition: "all 200ms ease",
+  },
+  startBtnHover: {
+    background: accent,
+    transform: "translateY(-1px)",
+    boxShadow: "0 6px 20px -8px rgba(139,26,26,0.5)",
+  },
+  footer: {
+    marginTop: 80,
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 12,
+    color: muted,
+    letterSpacing: "0.05em",
+  },
+  topbar: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  questionCounter: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 13,
+    color: muted,
+    letterSpacing: "0.05em",
+  },
+  statsBox: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 13,
+    color: muted,
+  },
+  progressTrack: {
+    height: 2,
+    background: line,
+    borderRadius: 1,
+    overflow: "hidden",
+    marginBottom: 40,
+  },
+  progressFill: {
+    height: "100%",
+    background: ink,
+    transition: "width 400ms cubic-bezier(0.22, 1, 0.36, 1)",
+  },
+  questionCard: {
+    background: "#fff",
+    border: `1px solid ${line}`,
+    borderRadius: 6,
+    padding: "44px 40px",
+    marginBottom: 24,
+    boxShadow: "0 1px 0 rgba(0,0,0,0.03)",
+  },
+  questionText: {
+    fontSize: "clamp(22px, 3vw, 28px)",
+    lineHeight: 1.45,
+    margin: 0,
+    color: ink,
+  },
+  answerRow: {
+    display: "flex",
+    alignItems: "baseline",
+    gap: 12,
+    marginTop: 32,
+  },
+  input: {
+    fontFamily: '"EB Garamond", Georgia, serif',
+    fontSize: 32,
+    fontStyle: "italic",
+    border: "none",
+    borderBottom: `2px solid ${ink}`,
+    background: "transparent",
+    padding: "6px 4px",
+    width: 200,
+    outline: "none",
+    color: ink,
+    transition: "border-color 200ms ease",
+  },
+  inputOk: { borderBottomColor: ok, color: ok },
+  inputKo: { borderBottomColor: accent, color: accent },
+  unit: {
+    fontSize: 22,
+    color: muted,
+    fontStyle: "italic",
+  },
+  feedbackOk: {
+    marginTop: 24,
+    padding: "14px 18px",
+    background: "#eaf2ec",
+    borderLeft: `3px solid ${ok}`,
+    borderRadius: 3,
+    fontSize: 16,
+    lineHeight: 1.5,
+    color: "#1f3d2a",
+  },
+  feedbackKo: {
+    marginTop: 24,
+    padding: "14px 18px",
+    background: "#f5e6e6",
+    borderLeft: `3px solid ${accent}`,
+    borderRadius: 3,
+    fontSize: 16,
+    lineHeight: 1.5,
+    color: "#5a1414",
+  },
+  actions: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  primaryBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    fontWeight: 500,
+    letterSpacing: "0.02em",
+    padding: "12px 24px",
+    background: ink,
+    color: paper,
+    border: "none",
+    borderRadius: 4,
+    cursor: "pointer",
+    transition: "all 150ms ease",
+  },
+  secondaryBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    fontWeight: 500,
+    padding: "12px 20px",
+    background: "transparent",
+    color: ink,
+    border: `1px solid ${ink}`,
+    borderRadius: 4,
+    cursor: "pointer",
+  },
+  linkBtn: {
+    fontFamily: '"Inter", sans-serif',
+    fontSize: 14,
+    background: "transparent",
+    color: muted,
+    border: "none",
+    cursor: "pointer",
+    padding: "12px 8px",
+    marginLeft: "auto",
+  },
+};
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<PercentagesPractice />);
+</script>
+</body>
+</html>
